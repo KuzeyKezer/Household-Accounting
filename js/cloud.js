@@ -76,7 +76,7 @@ const Cloud = (() => {
   const cleanName = (v) => String(v || "").replace(/[\u0000-\u001f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
   function displayName(u) {
     const m = (u && u.user_metadata) || {};
-    const n = cleanName(m.full_name || m.name);
+    const n = cleanName(m.display_name || m.full_name || m.name);
     if (n) return n;
     const local = ((u && u.email) || "").split("@")[0];
     return cleanName(local) || "Bütçem";
@@ -124,7 +124,7 @@ const Cloud = (() => {
         if (password.length < 8) throw new Error("Password should be at least 8 characters");
         const fullName = cleanName($("auth-name").value);
         if (fullName.length < 2) throw new Error("Lütfen adını yaz.");
-        const { data: d, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo(), data: { full_name: fullName } } });
+        const { data: d, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo(), data: { display_name: fullName, hh_named: true } } });
         if (error) throw error;
         if (!d.session) authMsg("Neredeyse bitti! E-postana bir doğrulama bağlantısı gönderdik. Bağlantıya tıkladıktan sonra buradan giriş yap.", "ok");
       } else if (authMode === "reset") {
@@ -232,10 +232,14 @@ const Cloud = (() => {
       ready = false;
       await loadHousehold(h);
       ready = true;
-      if (h.role === "owner" && h.name === "Evim") { // eski varsayılan adı sahibin adıyla değiştir
-        const n = displayName(user);
-        const { error: rnErr } = await client.from("households").update({ name: n }).eq("id", h.id);
-        if (!rnErr) { h.name = n; household.name = n; }
+      const meta = user.user_metadata || {};
+      if (!meta.hh_named) { // tek seferlik: eski varsayılan "Evim" adını sahibin adıyla değiştir
+        if (h.role === "owner" && h.name === "Evim") {
+          const n = displayName(user);
+          const { error: rnErr } = await client.from("households").update({ name: n }).eq("id", h.id);
+          if (!rnErr) { h.name = n; household.name = n; }
+        }
+        client.auth.updateUser({ data: { hh_named: true } }).then(({ data: u }) => { if (u && u.user) user = u.user; });
       }
       hideAuth();
       render(); update();
@@ -404,7 +408,8 @@ const Cloud = (() => {
   async function renameMe() {
     const n = cleanName(prompt("Adın Soyadın (ortak bütçedeki kişiler ve harcama kayıtlarında görünür):", displayName(user)));
     if (n.length < 2) return;
-    const { data: d, error } = await client.auth.updateUser({ data: { full_name: n } });
+    // display_name: Google her girişte full_name'i kendi verisiyle ezer, bizimki ayrı anahtarda kalır
+    const { data: d, error } = await client.auth.updateUser({ data: { display_name: n } });
     if (error) { alert("Ad kaydedilemedi: " + trErr(error)); return; }
     user = d.user || user;
     renderAccountPanel(await listHouseholds());

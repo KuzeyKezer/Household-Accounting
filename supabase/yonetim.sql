@@ -12,7 +12,7 @@ create or replace view yonetim.harcamalar as
 select
   e.date                                                     as tarih,
   h.name                                                     as hane,
-  coalesce(nullif(u.raw_user_meta_data ->> 'full_name', ''), u.email, '(silinmiş kullanıcı)') as giren,
+  coalesce(nullif(u.raw_user_meta_data ->> 'display_name', ''), nullif(u.raw_user_meta_data ->> 'full_name', ''), u.email, '(silinmiş kullanıcı)') as giren,
   coalesce(k.kategori, '—')                                  as kategori,
   coalesce(k.kalem, '(silinmiş kalem)')                      as kalem,
   e.amount                                                   as tutar,
@@ -42,7 +42,7 @@ order by e.date desc, e.created_at desc;
 -- Kullanıcılar ve haneleri
 create or replace view yonetim.kullanicilar as
 select
-  coalesce(nullif(u.raw_user_meta_data ->> 'full_name', ''), '—') as ad,
+  coalesce(nullif(u.raw_user_meta_data ->> 'display_name', ''), nullif(u.raw_user_meta_data ->> 'full_name', ''), '—') as ad,
   u.email                                                     as eposta,
   h.name                                                      as hane,
   case m.role when 'owner' then 'sahip' else 'üye' end        as rol,
