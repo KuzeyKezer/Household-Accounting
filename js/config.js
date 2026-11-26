@@ -10,6 +10,6 @@
 // !!! BURAYA ASLA "sb_secret_..." ile başlayan anahtarı ya da eski "service_role" anahtarını YAZMA.
 // O anahtar bütün güvenlik kurallarını atlar. Yanlışlıkla yazarsan uygulama çalışmayı reddeder.
 window.APP_CONFIG = {
-  supabaseUrl: "",  // örnek: "https://abcdefghijklmnop.supabase.co"
-  supabaseKey: ""   // örnek: "sb_publishable_xxxxxxxxxxxxxxxxxxxx"
+  supabaseUrl: "https://zwauveaisaofjcnohfiv.supabase.co",  // örnek: "https://abcdefghijklmnop.supabase.co"
+  supabaseKey: "sb_publishable_YFaQJMM55T9FZ45tXkM9Yw_Bq9FYa9A"   // örnek: "sb_publishable_xxxxxxxxxxxxxxxxxxxx"
 };
