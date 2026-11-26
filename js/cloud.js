@@ -159,7 +159,18 @@ const Cloud = (() => {
     return { id: e.id, household_id: household.id, date: e.date, item_id: e.itemId || null,
       amount: Math.round(Number(e.amount) * 100) / 100, note: (e.note || "").slice(0, 200), pay: e.pay || "cash" };
   }
-  const budgetPayload = () => { const { expenses, ...rest } = data; return rest; };
+  let savedCore = "", ozetStale = false;
+  // jsonb anahtar sırasını değiştirir: karşılaştırmayı sıradan bağımsız yap
+  const stable = (v) => Array.isArray(v) ? "[" + v.map(stable).join(",") + "]"
+    : v && typeof v === "object" ? "{" + Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}"
+    : JSON.stringify(v === undefined ? null : v);
+  const coreOf = (p) => { const { ozet, ...c } = p; return JSON.stringify(c); };
+  const budgetPayload = () => {
+    const { expenses, ozet, ...rest } = data;
+    let o = null;
+    try { o = adminSummary(); } catch (e) { console.error("özet hesaplanamadı", e); }
+    return o ? { ...rest, ozet: o } : rest;
+  };
 
   async function listHouseholds() {
     const { data: rows, error } = await client.from("household_members")
@@ -211,12 +222,17 @@ const Cloud = (() => {
     if (e2) throw e2;
     version = b.version;
     const doc = b.data && Object.keys(b.data).length ? b.data : emptyData(defaultData());
-    const d = migrate({ ...defaultData(), ...doc });
+    const { ozet: _o, ...docClean } = doc; // özet her kayıtta yeniden hesaplanır
+    const d = migrate({ ...defaultData(), ...docClean });
     d.expenses = ex.map(rowToExpense);
     data = d;
-    lastSaved = JSON.stringify(budgetPayload());
     CUR_YM = periodOf(todayStr());
     viewYM = CUR_YM;
+    const p = budgetPayload();
+    lastSaved = JSON.stringify(p);
+    savedCore = coreOf(p);
+    // özet eksik ya da eskiyse (ör. ay döndü) bir kere sessizce yenilenecek
+    ozetStale = stable(_o || null) !== stable(p.ozet || null);
     openAdv.clear();
     try { localStorage.setItem(HH_KEY + ":" + user.id, h.id); } catch (e) {}
   }
@@ -245,6 +261,7 @@ const Cloud = (() => {
       render(); update();
       renderAccountPanel(list);
       setStatus("ok", "☁ Kaydedildi");
+      if (ozetStale) { ozetStale = false; lastSaved = ""; scheduleSave(); } // özeti sessizce yenile
     } catch (err) {
       setStatus("err", "⚠ " + trErr(err));
       showAuth("signin");
@@ -276,9 +293,12 @@ const Cloud = (() => {
       if (error) throw error;
       version = v;
       lastSaved = json;
+      savedCore = coreOf(payload);
       setStatus("ok", "☁ Kaydedildi");
     } catch (err) {
       if (/conflict/i.test(err.message || "")) {
+        // sadece özet yenileniyordu (kullanıcı bir şey değiştirmedi): sessizce güncelini al
+        if (coreOf(payload) === savedCore) { await reloadFromServer(null); return; }
         await reloadFromServer("Başka bir cihazda değişiklik yapılmış; en güncel hali yüklendi. Son yaptığın değişiklik kaydedilemedi, lütfen tekrar yap.");
       } else {
         dirty = true;
