@@ -73,6 +73,15 @@ const Cloud = (() => {
 
   // ---------- auth screen ----------
   let authMode = "signin"; // signin | signup | reset | newpass
+  const cleanName = (v) => String(v || "").replace(/[\u0000-\u001f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+  function displayName(u) {
+    const m = (u && u.user_metadata) || {};
+    const n = cleanName(m.full_name || m.name);
+    if (n) return n;
+    const local = ((u && u.email) || "").split("@")[0];
+    return cleanName(local) || "Bütçem";
+  }
+
   function showAuth(mode = authMode) {
     authMode = mode;
     $("auth-screen").hidden = false;
@@ -80,6 +89,8 @@ const Cloud = (() => {
     const pw = $("auth-password");
     $("auth-title").textContent = { signin: "Giriş yap", signup: "Hesap oluştur", reset: "Şifreni sıfırla", newpass: "Yeni şifreni belirle" }[mode];
     $("auth-email-row").hidden = mode === "newpass";
+    $("auth-name-row").hidden = mode !== "signup";
+    $("auth-name").required = mode === "signup";
     $("auth-password-row").hidden = mode === "reset";
     pw.autocomplete = mode === "signin" ? "current-password" : "new-password";
     pw.placeholder = mode === "signin" ? "Şifre" : "Şifre (en az 8 karakter)";
@@ -111,7 +122,9 @@ const Cloud = (() => {
         if (error) throw error;
       } else if (authMode === "signup") {
         if (password.length < 8) throw new Error("Password should be at least 8 characters");
-        const { data: d, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo() } });
+        const fullName = cleanName($("auth-name").value);
+        if (fullName.length < 2) throw new Error("Lütfen adını yaz.");
+        const { data: d, error } = await client.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo(), data: { full_name: fullName } } });
         if (error) throw error;
         if (!d.session) authMsg("Neredeyse bitti! E-postana bir doğrulama bağlantısı gönderdik. Bağlantıya tıkladıktan sonra buradan giriş yap.", "ok");
       } else if (authMode === "reset") {
@@ -176,9 +189,10 @@ const Cloud = (() => {
     }
     const exps = moveLocal ? (initial.expenses || []) : [];
     const { expenses, ...doc } = initial;
-    const { data: hid, error } = await client.rpc("create_household", { p_name: "Evim", p_data: doc });
+    const hname = displayName(user);
+    const { data: hid, error } = await client.rpc("create_household", { p_name: hname, p_data: doc });
     if (error) throw error;
-    household = { id: hid, role: "owner", name: "Evim" };
+    household = { id: hid, role: "owner", name: hname };
     if (exps.length) {
       const rows = exps.map((e) => expenseToRow({ ...e, id: crypto.randomUUID() }));
       const { error: e2 } = await client.from("expenses").insert(rows);
@@ -218,6 +232,11 @@ const Cloud = (() => {
       ready = false;
       await loadHousehold(h);
       ready = true;
+      if (h.role === "owner" && h.name === "Evim") { // eski varsayılan adı sahibin adıyla değiştir
+        const n = displayName(user);
+        const { error: rnErr } = await client.from("households").update({ name: n }).eq("id", h.id);
+        if (!rnErr) { h.name = n; household.name = n; }
+      }
       hideAuth();
       render(); update();
       renderAccountPanel(list);
@@ -336,6 +355,7 @@ const Cloud = (() => {
     if (!box) return;
     box.hidden = false;
     $("acc-email").textContent = user.email || "";
+    $("acc-name").textContent = displayName(user);
     $("acc-household").textContent = household.name;
     const sel = $("acc-switch");
     sel.innerHTML = "";
@@ -381,6 +401,14 @@ const Cloud = (() => {
     const { error } = await client.from("households").update({ name }).eq("id", household.id);
     if (!error) { household.name = name; renderAccountPanel(await listHouseholds()); }
   }
+  async function renameMe() {
+    const n = cleanName(prompt("Adın Soyadın (ortak bütçedeki kişiler ve harcama kayıtlarında görünür):", displayName(user)));
+    if (n.length < 2) return;
+    const { data: d, error } = await client.auth.updateUser({ data: { full_name: n } });
+    if (error) { alert("Ad kaydedilemedi: " + trErr(error)); return; }
+    user = d.user || user;
+    renderAccountPanel(await listHouseholds());
+  }
   async function signOut() {
     await flush();
     await client.auth.signOut();
@@ -395,8 +423,9 @@ const Cloud = (() => {
     $("acc-invite").addEventListener("click", makeInvite);
     $("acc-join").addEventListener("click", joinWithCode);
     $("acc-switch").addEventListener("change", (e) => switchHousehold(e.target.value));
+    $("acc-name-edit").addEventListener("click", renameMe);
     $("acc-rename").addEventListener("click", () => {
-      const n = prompt("Bütçenin adı:", household ? household.name : "Evim");
+      const n = prompt("Bütçenin adı:", household ? household.name : displayName(user));
       if (n) renameHousehold(n);
     });
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkRemote(); });
