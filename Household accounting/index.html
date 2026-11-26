@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- Content Security Policy: only our own scripts run; data goes only to Supabase -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="theme-color" content="#1a73e8" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Ev Bütçesi" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <title>Ev Bütçesi</title>
+  <link rel="stylesheet" href="style.css?v=20261126a" />
+</head>
+<body>
+  <!-- ============ GİRİŞ (sadece Supabase bağlıyken) ============ -->
+  <div class="auth-screen" id="auth-screen" hidden>
+    <div class="auth-card">
+      <div class="auth-brand"><img src="icons/icon-192.png" alt="" width="44" height="44" /> Ev Bütçesi</div>
+      <h2 id="auth-title">Giriş yap</h2>
+      <button type="button" class="google-btn" id="auth-google">
+        <span class="g-logo" aria-hidden="true">G</span> Google ile devam et
+      </button>
+      <div class="auth-or" id="auth-or"><span>veya e-posta ile</span></div>
+      <form id="auth-form" autocomplete="on">
+        <label class="auth-row" id="auth-email-row">
+          <span>E-posta</span>
+          <input type="email" id="auth-email" name="email" autocomplete="username" inputmode="email" required />
+        </label>
+        <label class="auth-row" id="auth-password-row">
+          <span>Şifre</span>
+          <input type="password" id="auth-password" name="password" autocomplete="current-password" minlength="8" required />
+        </label>
+        <button type="submit" class="primary-btn auth-submit" id="auth-submit">Giriş yap</button>
+      </form>
+      <div class="auth-msg" id="auth-msg" role="status"></div>
+      <div class="auth-switch" id="auth-switch"></div>
+      <p class="auth-foot">Verilerin sadece senin hesabında (ve davet ettiğin kişilerle ortak bütçede) görünür.</p>
+    </div>
+  </div>
+
+  <div class="container" id="app-root">
+    <header class="top">
+      <h1>Ev Bütçesi</h1>
+      <div class="month-nav">
+        <button id="month-prev" class="nav-btn" type="button" aria-label="Önceki ay">‹</button>
+        <span id="month-label" class="month-label"></span>
+        <button id="month-next" class="nav-btn" type="button" aria-label="Sonraki ay">›</button>
+        <button id="month-today" class="link-btn" type="button" hidden>bu aya dön</button>
+      </div>
+      <span class="sync-status" id="sync-status" hidden></span>
+      <button id="quick-add" class="primary-btn" type="button">+ Harcama</button>
+    </header>
+
+    <nav class="tabs" id="tabs" role="tablist">
+      <button type="button" data-tab="overview">Özet</button>
+      <button type="button" data-tab="expenses">Harcamalar</button>
+      <button type="button" data-tab="plan">Bütçe planı</button>
+      <button type="button" data-tab="debts">Borçlar</button>
+      <button type="button" data-tab="settings">Ayarlar</button>
+    </nav>
+
+    <!-- ============ ÖZET ============ -->
+    <section class="tab-page" data-page="overview">
+      <div class="ov-grid" id="ov-cards"></div>
+
+      <section class="panel accounts-panel">
+        <div class="panel-head">
+          <div class="section-title">Elimdeki para</div>
+          <div class="accounts-total" id="accounts-total">₺0</div>
+        </div>
+        <div id="accounts-list"></div>
+        <button class="add-btn" id="add-account" type="button">+ Hesap ekle</button>
+        <div class="settings-help acc-help">Nakit, banka hesapları, kenardaki birikim… Bugün elinde ne varsa yaz. Aşağıdaki 12 aylık tahmin bu paradan başlar.</div>
+      </section>
+
+      <div class="summary-grid">
+        <div class="stat-card">
+          <div class="stat-label">Aylık gelir</div>
+          <div class="stat-value" id="income-total-ov">₺0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Planlanan gider</div>
+          <div class="stat-value" id="expense-val">₺0</div>
+        </div>
+        <div class="stat-card savings">
+          <div class="stat-label">Birikime ayrılan</div>
+          <div class="stat-value" id="savings-val">₺0</div>
+        </div>
+        <div class="stat-card" id="surplus-card">
+          <div class="stat-label">Dağıtılmamış kalan</div>
+          <div class="stat-value" id="surplus-val">₺0</div>
+          <div class="stat-sub" id="ratio-val"></div>
+        </div>
+        <div class="stat-card" id="ratio-card" hidden></div>
+      </div>
+
+      <div class="charts">
+        <div class="donut-wrap">
+          <div class="donut" id="donut">
+            <div class="donut-hole">
+              <div class="donut-pct" id="donut-pct">%0</div>
+              <div class="donut-sub">gelirin<br />harcanan kısmı</div>
+            </div>
+          </div>
+        </div>
+        <div class="usage">
+          <div class="usage-title">Gelir nereye gidiyor? <span class="muted-small" id="usage-month"></span></div>
+          <div class="bar-wrap" id="usage-bar"></div>
+          <div class="legend" id="legend"></div>
+          <div class="over-warning" id="over-warning" hidden>Ayırdığın tutarlar geliri aşıyor!</div>
+        </div>
+      </div>
+
+      <section class="panel" id="cashflow-panel">
+        <div class="panel-head">
+          <div class="section-title">Önümüzdeki 12 ay</div>
+          <div class="panel-meta">her ay elinde ne kalır · sütuna tıkla, o aya git</div>
+        </div>
+        <div class="cf-chart" id="cf-chart"></div>
+        <div class="cf-notes" id="cf-notes"></div>
+        <details class="cf-table-wrap">
+          <summary>Ay ay tablo</summary>
+          <div id="cf-table"></div>
+        </details>
+      </section>
+    </section>
+
+    <!-- ============ HARCAMALAR ============ -->
+    <section class="tab-page" data-page="expenses">
+      <section class="panel" id="expenses-panel">
+        <div class="panel-head">
+          <div class="section-title">Harcama ekle</div>
+          <div class="panel-meta" id="exp-total"></div>
+        </div>
+        <div class="exp-form" id="exp-form">
+          <input type="date" id="exp-date" aria-label="Tarih" />
+          <select id="exp-item" aria-label="Kalem"></select>
+          <div class="money-input exp-amount-wrap">
+            <span>₺</span>
+            <input type="text" id="exp-amount" inputmode="numeric" autocomplete="off" placeholder="Tutar" aria-label="Tutar" />
+          </div>
+          <select id="exp-pay" aria-label="Ödeme yöntemi"></select>
+          <div class="money-input exp-inst-wrap" id="exp-inst-wrap" hidden>
+            <input type="text" id="exp-inst" inputmode="numeric" autocomplete="off" value="1" aria-label="Taksit sayısı" />
+            <span>taksit</span>
+          </div>
+          <input type="text" id="exp-note" placeholder="Not (isteğe bağlı)" autocomplete="off" />
+          <button id="exp-add" class="primary-btn" type="button">Ekle</button>
+        </div>
+        <div class="exp-hint" id="exp-hint"></div>
+        <div class="list-title"><span id="exp-month"></span> harcamaları</div>
+        <div id="exp-list"></div>
+      </section>
+    </section>
+
+    <!-- ============ BÜTÇE PLANI ============ -->
+    <section class="tab-page" data-page="plan">
+      <p class="page-intro">Her ay için planladığın gelir ve giderler. Bir kaleme tıklayıp tutarını yaz; kartla ödeme, taksit, yıllık ödeme gibi ayrıntılar için kalemin yanındaki <b>⚙</b>'ye bas.</p>
+      <section class="income-box">
+        <div class="income-head">
+          <div class="section-title">Gelirler</div>
+          <div class="income-total" id="income-total">₺0</div>
+        </div>
+        <div id="income-list"></div>
+        <button class="add-btn" id="add-income" type="button">+ Gelir ekle</button>
+      </section>
+
+      <div class="toolbar">
+        <button class="link-btn" id="expand-all" type="button">Tümünü aç</button>
+        <button class="link-btn" id="collapse-all" type="button">Tümünü kapat</button>
+      </div>
+      <div id="goals-container"></div>
+      <div id="categories-container"></div>
+    </section>
+
+    <!-- ============ BORÇLAR ============ -->
+    <section class="tab-page" data-page="debts">
+      <p class="page-intro">Kredi kartı taksitlerin ve kredilerin. Kartla yaptığın harcamaları Harcamalar sekmesinden girersen buraya kendiliğinden düşer.</p>
+      <div id="debts-container"></div>
+    </section>
+
+    <!-- ============ AYARLAR ============ -->
+    <section class="tab-page" data-page="settings">
+      <section class="panel" id="account-panel" hidden>
+        <div class="section-title">Hesap ve ortak bütçe</div>
+        <div class="acc-grid">
+          <div class="acc-line"><span class="acc-k">Giriş yapılan hesap</span><span id="acc-email"></span></div>
+          <div class="acc-line"><span class="acc-k">Açık bütçe</span><span><b id="acc-household"></b> <span class="muted-small" id="acc-members"></span>
+            <button type="button" class="link-btn" id="acc-rename">adını değiştir</button></span></div>
+          <div class="acc-line" id="acc-switch-row" hidden><span class="acc-k">Bütçe değiştir</span><select id="acc-switch" class="adv-select"></select></div>
+        </div>
+        <div class="acc-block">
+          <div class="acc-sub">Birini bu bütçeye davet et</div>
+          <p class="settings-help">Annen, eşin gibi bu bütçeyi birlikte tutacağın kişiye bir kod ver. Kodu giren kişi bu bütçenin tamamını görür ve düzenleyebilir.</p>
+          <button type="button" class="ghost-btn" id="acc-invite">Davet kodu oluştur</button>
+          <div class="acc-out" id="acc-invite-out"></div>
+        </div>
+        <div class="acc-block">
+          <div class="acc-sub">Bir davet koduyla katıl</div>
+          <div class="acc-join">
+            <input type="text" id="acc-join-code" class="adv-select" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" />
+            <button type="button" class="ghost-btn" id="acc-join">Koda katıl</button>
+          </div>
+          <div class="acc-out" id="acc-join-msg"></div>
+        </div>
+        <button type="button" class="ghost-btn" id="acc-signout">Çıkış yap</button>
+      </section>
+      <section class="panel">
+        <div class="section-title">Yedek</div>
+        <p class="settings-help">Bütün verini (plan, harcamalar, kartlar…) tek bir dosya olarak indir. Ara ara indirip sakla; bir şey olursa buradan geri yüklersin.</p>
+        <div class="backup-row">
+          <button type="button" class="ghost-btn" id="backup-download">⬇ Yedeği indir</button>
+          <label class="ghost-btn file-btn">⬆ Yedekten geri yükle<input type="file" id="backup-file" accept="application/json,.json" hidden /></label>
+        </div>
+        <div class="settings-help" id="backup-msg"></div>
+      </section>
+      <section class="panel">
+        <div class="section-title">Bütçe dönemi</div>
+        <p class="settings-help">Ayı takvime göre mi, maaş gününden maaş gününe mi sayalım?</p>
+        <div class="period-row" id="period-row"></div>
+      </section>
+      <section class="panel">
+        <div class="section-title">Varsayılan ödeme yöntemi</div>
+        <p class="settings-help">Kalemlerin çoğunu kartla ödüyorsan burada kartı seç; nakit ödediklerini kalemin ⚙ ayarından tek tek değiştirirsin.</p>
+        <div class="default-pay" id="default-pay"></div>
+      </section>
+      <details class="rates panel" id="rates-panel">
+        <summary>
+          <span class="section-title">Faiz oranları ve vergiler</span>
+          <span class="rates-hint">hesaplamalarda kullanılır · düzenlenebilir</span>
+        </summary>
+        <div id="rates-body"></div>
+        <div class="rates-note">
+          Kredi kartı oranları TCMB'nin aylık <b>azami</b> akdi faiz oranlarıdır (dönem borcuna göre kademeli, 2026 başından beri değişmedi); sonradan taksitlendirmede varsayılan olarak bu oran, taksitli nakit avansta nakit avans oranı kullanılır. Bankan daha düşük oran uyguluyorsa satırdaki faiz kutusundan değiştir.
+          Faizli taksitler bankaların kullandığı eşit taksitli (anüite) yöntemle hesaplanır; peşin fiyatına taksit veren faizsiz alışverişlerde tutar taksit sayısına bölünür.
+          İhtiyaç kredisi oranı piyasa ortalamasıdır (Kasım 2026, ~%3,39); bankana ve kredi notuna göre değişir, kendi teklifindeki oranı yaz.
+          İhtiyaç/taşıt kredisi ve kart faizine %15 KKDF + %15 BSMV eklenir; konut kredisi bu vergilerden muaftır.
+        </div>
+      </details>
+      <section class="panel danger-zone">
+        <div class="section-title">Sıfırla</div>
+        <p class="settings-help">Gelirleri, bütçe tutarlarını, harcamaları, kartları, kredileri ve hedefleri siler; kategori ve kalem isimleri boş bir şablon olarak kalır. <b>Faiz oranları, vergiler ve bütçe dönemi ayarın korunur.</b> Geri alınamaz.</p>
+        <button id="reset-btn" class="ghost-btn danger" type="button">Her şeyi sıfırla</button>
+      </section>
+      <div class="note">
+        Brüt maaş seçersen net tutar her ay için 2026 gelir vergisi tarifesi, SGK, damga vergisi ve asgari ücret istisnasıyla tahmini olarak hesaplanır; bordrondaki rakamla farklar olabilir (BES, ikramiye, prim dahil değildir).
+        Plan her ay aynıdır; üstteki ay seçici harcamaları ve o aya düşen taksitleri değiştirir. "Ödenmiş taksit" bugün itibarıyla girilir, sonraki aylarda kendiliğinden ilerler.
+        Veriler bu tarayıcıda kaydedilir.
+      </div>
+    </section>
+  </div>
+
+  <!-- order matters: each file uses globals from the ones above it -->
+  <script src="js/config.js?v=20261126a"></script>
+  <script src="js/vendor/supabase.js?v=20261126a"></script>
+  <script src="js/dates.js?v=20261126a"></script>
+  <script src="js/state.js?v=20261126a"></script>
+  <script src="js/helpers.js?v=20261126a"></script>
+  <script src="js/payroll.js?v=20261126a"></script>
+  <script src="js/finance.js?v=20261126a"></script>
+  <script src="js/render.js?v=20261126a"></script>
+  <script src="js/expenses.js?v=20261126a"></script>
+  <script src="js/update.js?v=20261126a"></script>
+  <script src="js/cloud.js?v=20261126a"></script>
+  <script src="js/backup.js?v=20261126a"></script>
+  <script src="js/main.js?v=20261126a"></script>
+</body>
+</html>
