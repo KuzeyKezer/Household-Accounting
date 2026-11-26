@@ -9,7 +9,7 @@
 create schema if not exists yonetim;
 revoke all on schema yonetim from public, anon, authenticated;
 
-drop view if exists yonetim.kategori_harcama, yonetim.harcamalar, yonetim.kullanicilar, yonetim.haneler,
+drop view if exists yonetim.harcama_ozeti, yonetim.kategori_harcama, yonetim.harcamalar, yonetim.kullanicilar, yonetim.haneler,
   yonetim.plan, yonetim.gelirler, yonetim.hesaplar, yonetim.kartlar,
   yonetim.kart_taksitleri, yonetim.krediler, yonetim.hedefler cascade;
 drop function if exists yonetim.kisi(uuid);
@@ -93,6 +93,22 @@ left join lateral (
   where b.household_id = a.hane_id and pl ->> 'kategori' = a.kategori
 ) p on true
 order by a.ay desc, a.hane, a.harcanan desc;
+
+-- Harcama özeti: hane + giren kişi + ay başına tek satır. "detay" hücresine tıklayınca
+-- o kişinin o ayki bütün harcamaları (tarih, kategori, kalem, tutar, ödeme, açıklama) açılır.
+create view yonetim.harcama_ozeti as
+select
+  h.hane, h.giren, to_char(h.tarih, 'YYYY-MM') as ay,
+  count(*)                                                    as adet,
+  sum(h.tutar)                                                as toplam,
+  sum(h.tutar) filter (where h.odeme = 'Nakit')               as nakit,
+  sum(h.tutar) filter (where h.odeme <> 'Nakit')              as kartla,
+  jsonb_agg(jsonb_build_object(
+    'tarih', h.tarih, 'kategori', h.kategori, 'kalem', h.kalem, 'tutar', h.tutar,
+    'odeme', h.odeme, 'aciklama', h.aciklama) order by h.tarih desc, h.girilme_zamani desc) as detay
+from yonetim.harcamalar h
+group by h.hane, h.giren, to_char(h.tarih, 'YYYY-MM')
+order by ay desc, toplam desc;
 
 -- Aylık gider planı (kalemler)
 create view yonetim.plan as
