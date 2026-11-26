@@ -1,0 +1,8 @@
+# Yerel ayar / gizli bilgi dosyaları ASLA depoya girmesin
+.env
+.env.*
+*.local
+*secret*
+*.pem
+.DS_Store
+node_modules/
