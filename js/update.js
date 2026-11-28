@@ -312,7 +312,7 @@ function updateTimeline() {
   const evBox = ref("timeline-events");
   if (!box) return;
   const months = Array.from({ length: 12 }, (_, k) => addMonths(CUR_YM, k));
-  const vals = months.map(installmentsAt);
+  const vals = months.map((ym) => installmentsAt(ym));
   const max = Math.max(1, ...vals.map((v) => v.total));
   box.innerHTML = "";
   months.forEach((ym, k) => {
