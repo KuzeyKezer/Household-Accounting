@@ -13,15 +13,35 @@ const expInstWrap = document.getElementById("exp-inst-wrap");
 
 function fillPaySelect() {
   if (document.activeElement === expPay) return;
-  const keep = expPay.value || data.defaultPay || "cash";
+  const keep = (expPay.value !== "__newcard" && expPay.value) || data.defaultPay || "cash";
   expPay.innerHTML = "";
   expPay.appendChild(new Option("Nakit / banka kartı", "cash"));
   data.cards.forEach((c) => expPay.appendChild(new Option(`💳 ${c.label}`, c.id)));
+  expPay.appendChild(new Option(data.cards.length ? "+ Yeni kredi kartı ekle…" : "💳 Kredi kartı (taksit için kart ekle)…", "__newcard"));
   expPay.value = [...expPay.options].some((o) => o.value === keep) ? keep : "cash";
   syncInstallmentField();
 }
+// ödeme listesinden kart ekleme: kartı oluştur, seç, taksit alanını aç
+let payTouched = false; // kullanıcı ödeme yöntemini kendisi seçtiyse kalem seçimi onu değiştirmez
+function onPayChange() {
+  payTouched = true;
+  if (expPay.value !== "__newcard") { syncInstallmentField(); return; }
+  const name = (prompt("Kartın adı (ör. Bonus, World, Axess):", `Kredi kartı ${data.cards.length + 1}`) || "").trim().slice(0, 80);
+  if (!name) { expPay.value = "cash"; syncInstallmentField(); return; }
+  const c = { id: uid(), label: name, balance: 0, payment: 0, purchases: [] };
+  data.cards.push(c);
+  render(); update();
+  expPay.blur();
+  fillPaySelect();
+  expPay.value = c.id;
+  syncInstallmentField();
+  const hint = document.getElementById("exp-hint");
+  hint.className = "exp-hint ok";
+  hint.textContent = `"${name}" kartı eklendi. Taksit sayısını yazabilirsin; hesap kesim ve son ödeme gününü Borçlar sekmesinden girebilirsin.`;
+  expInst.focus(); expInst.select();
+}
 function syncInstallmentField() {
-  const isCard = expPay.value !== "cash";
+  const isCard = expPay.value !== "cash" && expPay.value !== "__newcard";
   expInstWrap.hidden = !isCard;
   document.getElementById("exp-form").classList.toggle("with-inst", isCard);
   if (!isCard) expInst.value = "1";
@@ -77,6 +97,8 @@ function addExpense() {
     hint.textContent = "";
   }
   expInst.value = "1";
+  payTouched = false;
+  syncInstallmentField();
   expAmount.value = "";
   expNote.value = "";
   if (periodOf(date) !== viewYM) viewYM = periodOf(date);
@@ -119,6 +141,7 @@ function renderExpenseList(list) {
 
 // choosing an item pre-fills how it's usually paid (its own method, else the default)
 function prefillPayFromItem() {
+  if (payTouched) return;
   const f = expItem.value && expItem.value !== "__other" ? findItem(expItem.value) : null;
   const p = f ? payOf(f.it) : data.defaultPay || "cash";
   if ([...expPay.options].some((o) => o.value === p)) expPay.value = p;

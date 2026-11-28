@@ -47,7 +47,7 @@ document.getElementById("expand-all").addEventListener("click", () => setAllOpen
 document.getElementById("collapse-all").addEventListener("click", () => setAllOpen(false));
 
 document.getElementById("exp-add").addEventListener("click", addExpense);
-expPay.addEventListener("change", syncInstallmentField);
+expPay.addEventListener("change", onPayChange);
 expItem.addEventListener("change", prefillPayFromItem);
 expInst.addEventListener("input", () => { expInst.value = expInst.value.replace(/[^\d]/g, "").slice(0, 2); });
 expInst.addEventListener("keydown", (e) => { if (e.key === "Enter") addExpense(); });
