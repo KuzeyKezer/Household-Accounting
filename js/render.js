@@ -111,6 +111,11 @@ function renderIncomes() {
     }
 
 
+    const dayRow = el("div", "income-opts");
+    dayRow.appendChild(dayField("Hesabına ayın kaçında yatıyor?", inc, "payDay",
+      `Dönem başında (ayın ${startDay()}. günü)`, "Yattığı gün elindeki paraya eklenir."));
+    detail.appendChild(dayRow);
+
     // raises / changes
     const sorted = [...inc.changes].sort((x, y) => (x.from < y.from ? -1 : 1));
     let prev = inc.value;
@@ -244,6 +249,13 @@ function selectField(label, options, value, onChange, title) {
   return field(label, sel);
 }
 
+// "Ayın kaçında?" seçimi (1–31). Boş: belirtilmemiş.
+function dayField(label, obj, key, emptyText, help) {
+  const opts = [["", emptyText], ...Array.from({ length: 31 }, (_, i) => [String(i + 1), `Ayın ${i + 1}. günü`])];
+  return selectField(label, opts, obj[key] ? String(obj[key]) : "",
+    (v) => { if (v) obj[key] = Number(v); else delete obj[key]; }, help);
+}
+
 function itemRow(cat, it) {
   const frag = document.createDocumentFragment();
   const row = el("div", "item");
@@ -284,6 +296,10 @@ function itemRow(cat, it) {
     [["", `Varsayılan (${defName})`], ["cash", "Nakit / banka kartı"], ...data.cards.map((c) => [c.id, `💳 ${c.label}`])],
     it.pay || "", (v) => (it.pay = v || undefined),
     "Kartla ödenenler nakit akışında bir sonraki aya (ekstreye) yazılır."));
+  if (payOf(it) === "cash") {
+    grid.appendChild(dayField("Ayın kaçında ödüyorsun?", it, "payDay", "Belli değil (ay içine yayılır)",
+      "O gün geldiğinde elindeki paradan düşülür. Market gibi her gün harcanan kalemlerde boş bırak: ay boyunca gün gün düşer."));
+  }
   if (n > 1 && payOf(it) !== "cash") {
     grid.appendChild(field("Bankada kaç taksit?", numInput(() => it.inst || 1,
       (v) => (it.inst = v >= 1 ? Math.min(v, 36) : 1), { prefix: "", suffix: "taksit" })));
@@ -380,6 +396,13 @@ function renderDebts() {
     box.appendChild(el("div", "mini-title", "Uygulama dışından kalan eski borç"));
     box.appendChild(el("div", "mini-hint",
       "Kartla yaptığın tek çekim harcamaları buraya yazma: onları Harcamalar'a ödeme yöntemi bu kart olarak gir, kendiliğinden ekstreye eklenir."));
+    const days = el("div", "dgrid two");
+    days.appendChild(dayField("Hesap kesim günü", card, "cutDay", "Bilmiyorum",
+      "Ekstrenin kesildiği gün. Kartın ekstresinde ya da bankanın uygulamasında yazar."));
+    days.appendChild(dayField("Son ödeme günü", card, "dueDay", "Bilmiyorum (dönem başı sayılır)",
+      "Ekstre bu gün elindeki paradan düşülür."));
+    box.insertBefore(days, head.nextSibling);
+
     const grid = el("div", "dgrid two");
     grid.appendChild(field("Eski borç (taksit hariç)", numInput(() => card.balance, (v) => (card.balance = v))));
     grid.appendChild(field("Bu ay bu borca ödeyeceğin", numInput(() => card.payment, (v) => (card.payment = v))));
@@ -419,6 +442,10 @@ function renderDebts() {
     grid.appendChild(field("Ödenmiş taksit (bugün)", numInput(() => paidNow(loan, loan.term),
       (v) => { loan.paid = v; loan.asOf = CUR_YM; }, { prefix: "", suffix: "adet" })));
     box.appendChild(grid);
+    const lday = el("div", "dgrid two");
+    lday.appendChild(dayField("Taksit günü", loan, "payDay", "Bilmiyorum (dönem başı sayılır)",
+      "Taksit bu gün elindeki paradan düşülür."));
+    box.appendChild(lday);
     box.appendChild(el("div", "debt-info")).dataset.ref = `dinfo-${loan.id}`;
     body.appendChild(box);
   });

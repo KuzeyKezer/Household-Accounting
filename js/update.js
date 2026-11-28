@@ -159,6 +159,7 @@ function update() {
     const chips = [];
     if (multi) chips.push((FREQ[monthsOf(it)] || `${monthsOf(it)} ayda bir`).toLowerCase());
     if (multi && it.payMonth) chips.push(MONTHS[it.payMonth - 1]);
+    if (dayOf(it) && payOf(it) === "cash") chips.push(`ayın ${dayOf(it)}. günü`);
     if (it.pay) chips.push(it.pay === "cash" ? "nakit" : `💳 ${(data.cards.find((c) => c.id === it.pay) || {}).label || ""}`);
     if (itemInst(it) > 1) chips.push(`${itemInst(it)} taksit`);
     if (multi) chips.push(`aylık ≈ ${fmt(m)}`);
@@ -289,7 +290,7 @@ function update() {
   });
 
   // money on hand
-  document.getElementById("accounts-total").textContent = fmt(cashOnHand());
+  updateCashToday();
   data.accounts.forEach((a) => {
     let txt = "";
     if (a.asOf) {
@@ -449,4 +450,29 @@ function updateOverviewCards({ spentTotal, plannedVariable, spentBy }) {
         <div class="ov-sub">en düşük ay ${fmt(Math.min(...months.map((m) => m.left)))}</div></div>`);
   box.innerHTML = cards.join("");
   box.querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); showTab(a.dataset.goto); }));
+}
+
+// Elimdeki para: yazılan bakiye + o günden bugüne gelen/giden; yaklaşan ödemeler
+function updateCashToday() {
+  const now = cashToday();
+  document.getElementById("accounts-total").textContent = fmt(now.value);
+  const sub = document.getElementById("accounts-total-sub");
+  const box = document.getElementById("cash-today");
+  if (!sub || !box) return;
+  const shortD = (d) => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+  const short = (iso) => shortD(parseDay(iso));
+  sub.textContent = now.ref && now.moves.length ? `bugün için tahmini · yazdığın bakiye ${fmt(now.written)} (${short(now.ref)})` : "";
+  const parts = [];
+  if (now.moves.length) {
+    parts.push(`<div class="ct-line"><span class="ct-k">${short(now.ref)} → bugün:</span> ${now.moves.map((m) =>
+      `<span class="${m.v > 0 ? "pos" : "neg"}">${m.v > 0 ? "+" : "−"}${fmt(Math.abs(m.v)).replace("-", "")} ${esc(m.label)}</span>`).join(" · ")}</div>`);
+  }
+  const up = upcomingEvents();
+  if (up.length) {
+    parts.push(`<div class="ct-line"><span class="ct-k">Bu dönem yaklaşan:</span> ${up.slice(0, 8).map((e) =>
+      `<span class="${e.v > 0 ? "pos" : ""}">${shortD(e.date)} ${esc(e.label)} ${e.v > 0 ? "+" : ""}${fmt(Math.abs(e.v))}</span>`).join(" · ")}${up.length > 8 ? " …" : ""}</div>`);
+  }
+  const undated = periodEvents(CUR_YM).filter((e) => (e.kind === "card" || e.kind === "loan") && !e.dated);
+  if (undated.length) parts.push(`<div class="ct-line muted">Ödeme günü girilmemiş: ${undated.map((e) => esc(e.label)).join(", ")}. Dönem başında ödenmiş sayıldı; Borçlar'dan gününü seçebilirsin.</div>`);
+  box.innerHTML = parts.join("");
 }

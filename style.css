@@ -912,3 +912,14 @@ details[open] > summary .chev { transform: rotate(45deg); }
   .dgrid.pgrid, .dgrid.pgrid.four, .dgrid.two { grid-template-columns: 1fr 1fr; }
   .pline-head .type-select { order: 3; width: 100%; }
 }
+
+/* elimdeki para: bugün tahmini ve yaklaşan ödemeler */
+.accounts-total-wrap { text-align: right; }
+.accounts-total-sub { font-size: 11px; color: var(--muted); }
+.cash-today { margin: 4px 0 10px; display: grid; gap: 4px; }
+.cash-today:empty { display: none; }
+.ct-line { font-size: 12.5px; line-height: 1.6; }
+.ct-line.muted { color: var(--muted); }
+.ct-k { font-weight: 600; margin-right: 4px; }
+.ct-line .pos { color: var(--green); }
+.ct-line .neg { color: var(--red); }

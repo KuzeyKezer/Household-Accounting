@@ -132,6 +132,12 @@ function sanitize(d) {
     c.purchases.forEach((p) => { p.label = str(p.label) || "Taksit"; p.amount = num(p.amount); }); });
   d.loans.forEach((l) => { l.label = str(l.label) || "Kredi"; });
   d.expenses.forEach((e) => { e.amount = num(e.amount); e.note = str(e.note, 200); });
+  // ödeme günleri: 1–31 tam sayı, değilse alan silinir
+  const day = (o, k) => { const v = Math.round(Number(o[k])); if (v >= 1 && v <= 31) o[k] = v; else delete o[k]; };
+  d.categories.forEach((c) => c.items.forEach((it) => day(it, "payDay")));
+  d.incomes.forEach((i) => day(i, "payDay"));
+  d.loans.forEach((l) => day(l, "payDay"));
+  d.cards.forEach((c) => { day(c, "cutDay"); day(c, "dueDay"); });
 }
 
 // ================== STORAGE ==================

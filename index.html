@@ -13,7 +13,7 @@
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>Ev Bütçesi</title>
-  <link rel="stylesheet" href="style.css?v=20261126f" />
+  <link rel="stylesheet" href="style.css?v=20261128a" />
 </head>
 <body>
   <!-- ============ GİRİŞ (sadece Supabase bağlıyken) ============ -->
@@ -74,11 +74,13 @@
       <section class="panel accounts-panel">
         <div class="panel-head">
           <div class="section-title">Elimdeki para</div>
-          <div class="accounts-total" id="accounts-total">₺0</div>
+          <div class="accounts-total-wrap"><div class="accounts-total" id="accounts-total">₺0</div>
+            <div class="accounts-total-sub" id="accounts-total-sub"></div></div>
         </div>
+        <div class="cash-today" id="cash-today"></div>
         <div id="accounts-list"></div>
         <button class="add-btn" id="add-account" type="button">+ Hesap ekle</button>
-        <div class="settings-help acc-help">Nakit, banka hesapları, kenardaki birikim… Bugün elinde ne varsa yaz. Aşağıdaki 12 aylık tahmin bu paradan başlar.</div>
+        <div class="settings-help acc-help">Nakit, banka hesapları, kenardaki birikim… Elinde ne varsa yaz; yazdığın günden sonra maaşın yattıkça eklenir, ödeme günü gelen kira, fatura, kart ekstresi ve taksitler kendiliğinden düşülür. Arada bir gerçek bakiyeni yazıp düzeltmen yeterli.</div>
       </section>
 
       <div class="summary-grid">
@@ -261,19 +263,19 @@
   </div>
 
   <!-- order matters: each file uses globals from the ones above it -->
-  <script src="js/config.js?v=20261126f"></script>
-  <script src="js/vendor/supabase.js?v=20261126f"></script>
-  <script src="js/dates.js?v=20261126f"></script>
-  <script src="js/state.js?v=20261126f"></script>
-  <script src="js/helpers.js?v=20261126f"></script>
-  <script src="js/payroll.js?v=20261126f"></script>
-  <script src="js/finance.js?v=20261126f"></script>
-  <script src="js/render.js?v=20261126f"></script>
-  <script src="js/expenses.js?v=20261126f"></script>
-  <script src="js/update.js?v=20261126f"></script>
-  <script src="js/summary.js?v=20261126f"></script>
-  <script src="js/cloud.js?v=20261126f"></script>
-  <script src="js/backup.js?v=20261126f"></script>
-  <script src="js/main.js?v=20261126f"></script>
+  <script src="js/config.js?v=20261128a"></script>
+  <script src="js/vendor/supabase.js?v=20261128a"></script>
+  <script src="js/dates.js?v=20261128a"></script>
+  <script src="js/state.js?v=20261128a"></script>
+  <script src="js/helpers.js?v=20261128a"></script>
+  <script src="js/payroll.js?v=20261128a"></script>
+  <script src="js/finance.js?v=20261128a"></script>
+  <script src="js/render.js?v=20261128a"></script>
+  <script src="js/expenses.js?v=20261128a"></script>
+  <script src="js/update.js?v=20261128a"></script>
+  <script src="js/summary.js?v=20261128a"></script>
+  <script src="js/cloud.js?v=20261128a"></script>
+  <script src="js/backup.js?v=20261128a"></script>
+  <script src="js/main.js?v=20261128a"></script>
 </body>
 </html>

@@ -138,11 +138,15 @@ function cashflowAt(ym) {
 
 const cashOnHand = () => sum((data.accounts || []).map((a) => a.balance || 0));
 // 12 periods of cash flow from now, each with the projected end-of-period balance
+// İlk ay: bugünkü tahmini paradan başlar, dönemin kalan günlerindeki hareketler eklenir.
 function projection() {
-  let bal = cashOnHand();
+  const now = cashToday();
+  const today = parseDay(todayStr()), end = atNoon(periodEnd(CUR_YM));
+  const rest = sum(periodEvents(CUR_YM).map((e) => eventShare(e, CUR_YM, today, end)));
+  let bal = now.value + rest;
   return Array.from({ length: 12 }, (_, k) => {
     const m = cashflowAt(addMonths(CUR_YM, k));
-    bal += m.left;
+    if (k > 0) bal += m.left;
     return { ...m, balance: bal };
   });
 }
@@ -154,4 +158,112 @@ function findItem(id) {
     if (it) return { cat: c, it };
   }
   return null;
+}
+
+// ================== GÜNLÜK NAKİT (ödeme günleri) ==================
+// Bir kalemin / gelirin / kartın / kredinin ayın kaçında ödendiği (1–31). Yoksa null.
+const dayOf = (o, key = "payDay") => { const d = Math.round(Number(o && o[key])); return d >= 1 && d <= 31 ? d : null; };
+// "her ayın d'si" bütçe dönemi ym içinde hangi tarihe denk geliyor (maaş günü dönemlerinde iki aya yayılır)
+function dayInPeriod(ym, d) {
+  const s = periodStart(ym), e = periodEnd(ym);
+  for (const base of [s, e]) {
+    const y = base.getFullYear(), m = base.getMonth() + 1;
+    const x = new Date(y, m - 1, Math.min(d, daysIn(y, m)));
+    if (x >= s && x <= e) return x;
+  }
+  return s;
+}
+const incomeDay = (inc) => dayOf(inc) || startDay();
+// Dönem ym'deki bütün para hareketleri, tarihleriyle. v > 0 giriş, v < 0 çıkış.
+// spread: gün girilmemiş nakit kalem, dönem boyunca gün gün harcanıyor sayılır.
+// Toplamı cashflowAt(ym).left ile aynıdır.
+function periodEvents(ym) {
+  const ev = [];
+  const start = periodStart(ym);
+  data.incomes.forEach((i) => {
+    const v = incomeFor(i, ym);
+    if (v) ev.push({ date: dayInPeriod(ym, incomeDay(i)), label: i.label, v, kind: "income", dated: !!dayOf(i) });
+  });
+  const firstIncome = ev.length ? ev.reduce((a, b) => (b.date < a.date ? b : a)).date : start;
+  const savings = sum(data.goals.map((g) => g.monthly || 0));
+  if (savings) ev.push({ date: firstIncome, label: "Birikime ayrılan", v: -savings, kind: "savings", dated: true });
+  const byCard = {};
+  data.categories.forEach((c) => c.items.forEach((it) => {
+    const x = itemCashAt(it, ym);
+    if (!x.v) return;
+    const p = payOf(it);
+    if (p !== "cash") { byCard[p] = (byCard[p] || 0) + x.v; return; }
+    const d = dayOf(it);
+    ev.push(d ? { date: dayInPeriod(ym, d), label: x.due || it.label, v: -x.v, kind: "item", itemId: it.id, dated: true }
+              : { date: null, label: it.label, v: -x.v, kind: "item", itemId: it.id, spread: true });
+  }));
+  data.cards.forEach((c) => {
+    const lines = sum(c.purchases.filter((l) => !isLinked(l)).map((l) => lineCalc(l, c, ym).active));
+    const v = (byCard[c.id] || 0) + lines + (ym === CUR_YM ? c.payment || 0 : 0);
+    const d = dayOf(c, "dueDay");
+    if (v) ev.push({ date: d ? dayInPeriod(ym, d) : start, label: `💳 ${c.label} ekstresi`, v: -v, kind: "card", dated: !!d });
+  });
+  data.loans.forEach((l) => {
+    const v = loanCalc(l, ym).monthly;
+    const d = dayOf(l);
+    if (v) ev.push({ date: d ? dayInPeriod(ym, d) : start, label: `${l.label} taksiti`, v: -v, kind: "loan", dated: !!d });
+  });
+  return ev;
+}
+const dayMs = 864e5;
+const atNoon = (dt) => new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 12);
+const parseDay = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d, 12); };
+// (from, to] aralığında, dönem ym'nin bir hareketinden düşen kısım
+function eventShare(e, ym, from, to) {
+  if (!e.spread) { const t = atNoon(e.date); return t > from && t <= to ? e.v : 0; }
+  const s = atNoon(periodStart(ym)), en = atNoon(periodEnd(ym));
+  const days = Math.round((en - s) / dayMs) + 1;
+  // gün gün: dönemin her günü 1/days kadar
+  const a = Math.max(from.getTime(), s.getTime() - dayMs), b = Math.min(to.getTime(), en.getTime());
+  const n = Math.max(0, Math.round((b - a) / dayMs));
+  return (e.v * n) / days;
+}
+
+// Bugün elinde olması gereken para: hesaplara yazdığın bakiye, o günden bu yana
+// gelen gelirler ve ödeme günü geçen ödemelerle güncellenir. Bir kaleme nakit harcama
+// girdiysen, plan ile girdiğinden hangisi büyükse o düşülür (iki kere düşülmez).
+function cashToday() {
+  const written = cashOnHand();
+  const dates = (data.accounts || []).map((a) => a.asOf).filter(Boolean).sort();
+  if (!dates.length) return { value: written, written, ref: null, moves: [] };
+  const ref = dates[dates.length - 1];
+  const from = parseDay(ref), to = parseDay(todayStr());
+  if (to <= from) return { value: written, written, ref, moves: [] };
+  const moves = {};
+  const add = (key, label, v) => { if (!v) return; (moves[key] = moves[key] || { label, v: 0 }).v += v; };
+  const planByItem = {};
+  let ym = periodOf(ref);
+  for (let k = 0; k < 4 && monthDiff(ym, CUR_YM) >= 0; k++, ym = addMonths(ym, 1)) {
+    periodEvents(ym).forEach((e) => {
+      const v = eventShare(e, ym, from, to);
+      if (e.kind === "item") planByItem[e.itemId] = (planByItem[e.itemId] || 0) + v;
+      else add(e.kind + ":" + e.label, e.label, v);
+    });
+  }
+  // gerçek nakit harcamalar (bakiyeyi yazdığın günden sonra, bugüne kadar)
+  const actualByItem = {};
+  data.expenses.forEach((x) => {
+    if ((x.pay || "cash") !== "cash") return;
+    const t = parseDay(x.date);
+    if (t > from && t <= to) actualByItem[x.itemId || "?"] = (actualByItem[x.itemId || "?"] || 0) + x.amount;
+  });
+  const ids = new Set([...Object.keys(planByItem), ...Object.keys(actualByItem)]);
+  ids.forEach((id) => {
+    const plan = -(planByItem[id] || 0), act = actualByItem[id] || 0;
+    const f = findItem(id);
+    add("item:" + id, f ? f.it.label : "Diğer harcamalar", -Math.max(plan, act));
+  });
+  const list = Object.values(moves).filter((m) => Math.abs(m.v) >= 0.5);
+  return { value: written + sum(list.map((m) => m.v)), written, ref, moves: list.sort((a, b) => a.v - b.v) };
+}
+// Bugünden dönem sonuna kadar kalan tarihli hareketler (yaklaşan ödemeler)
+function upcomingEvents(ym = CUR_YM) {
+  const today = parseDay(todayStr());
+  return periodEvents(ym).filter((e) => !e.spread && atNoon(e.date) > today)
+    .sort((a, b) => a.date - b.date);
 }

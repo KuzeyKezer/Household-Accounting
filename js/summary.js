@@ -47,7 +47,7 @@ function adminSummary() {
   return {
     donem: ym, gelirler, hesaplar, kartlar, kart_taksitleri: taksitler, krediler, plan, hedefler,
     toplam: {
-      net_gelir: r(netGelir), elimdeki_para: r(cashOnHand()), plan_aylik: r(planTotal),
+      net_gelir: r(netGelir), elimdeki_para: r(cashOnHand()), bugun_tahmini: r(cashToday().value), plan_aylik: r(planTotal),
       borc_aylik: r(borcAylik), birikim_aylik: r(sum(data.goals.map((g) => g.monthly || 0))),
       kalan_kart_borcu: r(sum(kartlar.map((k) => k.ekstre_borcu + k.kalan_taksit_borcu))),
       kalan_kredi_borcu: r(sum(krediler.map((k) => k.kalan_tutar))),
